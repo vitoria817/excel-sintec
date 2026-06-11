@@ -1,355 +1,370 @@
-// =============================================
-//  APP.JS – Relatório Notas de Entrada SINTEC
-// =============================================
 'use strict';
 
-const API_BASE = '';   // mesma origem; ajuste se o server.js rodar em porta diferente
-let _dados = [];       // cache dos dados carregados
-let _sortCol = null;
-let _sortDir = 1;
+const API_BASE = '';
+let dadosNotas = [];
+let sortIndex = null;
+let sortDir = 1;
+let debounceTimer = {};
 
-// Colunas da tabela (cabeçalho principal)
-const COLUNAS = [
-  { key: 'IDEMPRESA',         label: 'Empresa',                type: 'num' },
-  { key: '_direcao',          label: 'Direção',                type: 'txt' },
-  { key: '_estornada',        label: 'Estornada',              type: 'txt' },
-  { key: '_cfop',             label: 'CFOP',                   type: 'txt' },
-  { key: 'DTLANCAMENTO',      label: 'Dt Lanct',               type: 'dat' },
-  { key: 'DTEMISSAO',         label: 'Data do documento',      type: 'dat' },
-  { key: 'NUMNOTA',           label: 'Nº da Nota',             type: 'txt' },
-  { key: 'SERIENOTA',         label: 'Série',                  type: 'txt' },
-  { key: 'VALICMS',           label: 'Valor ICMS',             type: 'brl' },
-  { key: '_csticms',          label: 'CST ICMS',               type: 'txt' },
-  { key: 'VALIPI',            label: 'Valor IPI',              type: 'brl' },
-  { key: '_cstipi',           label: 'CST IPI',                type: 'txt' },
-  { key: 'IDPESSOA',          label: 'Cliente/Fornec',         type: 'num' },
-  { key: 'NOME',              label: 'Nome Cliente/Forn',      type: 'txt' },
-  { key: 'UF',                label: 'UF',                     type: 'txt' },
-  { key: '_ncm',              label: 'NCM',                    type: 'txt' },
-  { key: 'VALPRODUTOS',       label: 'Valor Contábil',         type: 'brl' },
-  { key: 'VALBASEICMS',       label: 'Base ICMS',              type: 'brl' },
-  { key: '_aliqicms',         label: 'Alíquota do ICMS',       type: 'pct' },
-  { key: 'VALBASEIPI',        label: 'Base IPI',               type: 'brl' },
-  { key: '_aliqipi',          label: 'Alíquota do IPI',        type: 'pct' },
-  { key: 'MODELO',            label: 'Modelo da nota',         type: 'txt' },
-  { key: 'CHAVEACESSODANFE',  label: 'Chave NFe',              type: 'txt' },
-  { key: '_local',            label: 'Local',                  type: 'txt' },
-  { key: 'IDPLANILHA',        label: 'Documento contábil',     type: 'num' },
-  { key: '_incoterms',        label: 'Incoterms',              type: 'txt' },
-  { key: 'DESCR_OPERACAO',    label: 'Regime de Tributação - Descrição', type: 'txt' },
-  { key: 'TIPOPESSOA',        label: 'Tipo Pessoa',            type: 'txt' },
+const colunasNota = [
+  { key: 'idempresa', label: 'Empresa', type: 'num' },
+  { key: 'dtlancamento', label: 'Lançamento', type: 'dat' },
+  { key: 'dtemissao', label: 'Emissão', type: 'dat' },
+  { key: 'numnota', label: 'Nº Nota', type: 'txt' },
+  { key: 'serienota', label: 'Série', type: 'txt' },
+  { key: 'modelo', label: 'Modelo', type: 'txt' },
+  { key: 'idpessoa', label: 'ID Pessoa', type: 'num' },
+  { key: 'nome', label: 'Fornecedor/Cliente', type: 'txt' },
+  { key: 'tipopessoa', label: 'Tipo', type: 'badge' },
+  { key: 'descr_operacao', label: 'Operação', type: 'txt' },
+  { key: '_cfop', label: 'CFOP Nota', type: 'txt' },
+  { key: 'valprodutos', label: 'Vl. Produtos', type: 'brl' },
+  { key: 'valnota', label: 'Vl. Nota', type: 'brl' },
+  { key: 'valbaseicms', label: 'Base ICMS', type: 'brl' },
+  { key: 'valicms', label: 'ICMS', type: 'brl' },
+  { key: 'valbaseipi', label: 'Base IPI', type: 'brl' },
+  { key: 'valipi', label: 'IPI', type: 'brl' },
+  { key: 'valfrete', label: 'Frete', type: 'brl' },
+  { key: 'valdesconto', label: 'Desconto', type: 'brl' },
+  { key: 'chaveacessodanfe', label: 'Chave NFe', type: 'txt' }
 ];
 
-// Colunas dos itens/produtos (sub-linha)
-const COL_PROD = [
-  { key: 'IDPRODUTO',       label: 'Material' },
-  { key: 'DESCR',           label: 'Descrição do item' },
-  { key: 'QTDPRODUTO',      label: 'Quantidade',          type: 'num' },
-  { key: 'EMBALAGEMENTRADA',label: 'Unidade de medida' },
-  { key: 'VALUNITLIQUIDO',  label: 'Preço líq.',          type: 'brl6' },
-  { key: 'VALTOTLIQUIDO',   label: 'Valor líquido',       type: 'brl' },
-  { key: 'CFOP',            label: 'CFOP' },
-  { key: 'CODNCM',          label: 'NCM' },
-  { key: 'SITTRIB',         label: 'Sit.Trib.' },
-  { key: 'PERICMS',         label: 'Alíq.ICMS',           type: 'pct' },
-  { key: 'VALBASEICMS',     label: 'Base ICMS',           type: 'brl' },
-  { key: 'VALICMS',         label: 'Valor ICMS',          type: 'brl' },
-  { key: 'PERIPI',          label: 'Alíq.IPI',            type: 'pct' },
-  { key: 'VALBASEIPI',      label: 'Base IPI',            type: 'brl' },
-  { key: 'VALIPI',          label: 'Valor IPI',           type: 'brl' },
+const colunasProduto = [
+  { key: 'numsequencia', label: 'Seq', type: 'num' },
+  { key: 'codbar', label: 'Cód. Barras', type: 'txt' },
+  { key: 'descr', label: 'Descrição', type: 'txt' },
+  { key: 'codncm', label: 'NCM', type: 'txt' },
+  { key: 'numcodfornecedor', label: 'Cód. Fornecedor', type: 'txt' },
+  { key: 'sittrib', label: 'CST', type: 'txt' },
+  { key: 'cfop', label: 'CFOP', type: 'txt' },
+  { key: 'embalagementrada', label: 'UN', type: 'txt' },
+  { key: 'qtdproduto', label: 'Qtd', type: 'num' },
+  { key: 'valunitliquido', label: 'R$ Unit.', type: 'brl6' },
+  { key: 'valtotliquido', label: 'R$ Total', type: 'brl' },
+  { key: 'pericms', label: '% ICMS', type: 'pct' },
+  { key: 'valicms', label: 'ICMS', type: 'brl' },
+  { key: 'peripi', label: '% IPI', type: 'pct' },
+  { key: 'valipi', label: 'IPI', type: 'brl' },
+  { key: 'percofins', label: '% COFINS', type: 'pct' },
+  { key: 'valcofins', label: 'COFINS', type: 'brl' },
+  { key: 'idlote', label: 'Lote', type: 'txt' },
+  { key: 'flagestoque', label: 'Estoque', type: 'txt' }
 ];
 
-// =============================================
-//  UTILITÁRIOS
-// =============================================
 const fmt = {
-  brl: v => v == null ? '' : Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' }),
-  brl6: v => v == null ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits:6, maximumFractionDigits:6 }),
-  pct: v => v == null ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + '%',
+  brl: v => v == null ? '' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+  brl6: v => v == null ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 6, maximumFractionDigits: 6 }),
+  pct: v => v == null ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) + '%',
   num: v => v == null ? '' : Number(v).toLocaleString('pt-BR'),
-  dat: v => {
-    if (!v) return '';
-    const d = new Date(v);
-    return isNaN(d) ? v : d.toLocaleDateString('pt-BR');
-  },
-  txt: v => v == null ? '' : String(v),
+  dat: v => { if (!v) return ''; let d = new Date(v); return isNaN(d) ? v : d.toLocaleDateString('pt-BR'); },
+  txt: v => v == null ? '' : String(v)
 };
 
-function cell(val, type) {
-  if (!type || type === 'txt') return fmt.txt(val);
-  if (type === 'brl')  return fmt.brl(val);
-  if (type === 'brl6') return fmt.brl6(val);
-  if (type === 'pct')  return fmt.pct(val);
-  if (type === 'num')  return fmt.num(val);
-  if (type === 'dat')  return fmt.dat(val);
-  return val ?? '';
+function cellFormat(val, type) {
+  if (type === 'badge') {
+    let cls = val === 'J' ? 'badge-j' : 'badge-f';
+    let label = val === 'J' ? 'Jurídica' : val === 'F' ? 'Física' : (val || '');
+    return `<span class="badge ${cls}">${label}</span>`;
+  }
+  return fmt[type] ? fmt[type](val) : fmt.txt(val);
 }
 
-function isRight(type) { return ['brl','brl6','pct','num'].includes(type); }
+function alignType(t) {
+  return ['brl', 'brl6', 'pct', 'num'].includes(t);
+}
 
-// Enriquece linha com campos derivados
-function enriquecer(nota) {
-  nota._direcao   = 'Entrada';
-  nota._estornada = 'Não';
-  nota._csticms   = '';
-  nota._cstipi    = '';
-  nota._ncm       = '';
-  nota._aliqicms  = nota.produtos?.[0]?.PERICMS ?? '';
-  nota._aliqipi   = nota.produtos?.[0]?.PERIPI ?? '';
-  nota._cfop      = nota.produtos?.[0]?.CFOP ?? '';
-  nota._ncm       = nota.produtos?.[0]?.CODNCM ?? '';
-  nota._csticms   = nota.produtos?.[0]?.SITTRIB ?? '';
-  nota._cstipi    = nota.produtos?.[0]?.CSTIPI ?? '';
-  nota._local     = '';
-  nota._incoterms = '';
+function normalizeNota(notaRaw) {
+  let nota = {};
+  Object.keys(notaRaw).forEach(k => { nota[k.toLowerCase()] = notaRaw[k]; });
+  nota.produtos = (nota.produtos || []).map(p => {
+    let obj = {};
+    Object.keys(p).forEach(k => { obj[k.toLowerCase()] = p[k]; });
+    return obj;
+  });
+  nota._cfop = nota.produtos[0]?.cfop || '';
   return nota;
 }
 
-// =============================================
-//  BUSCA
-// =============================================
-async function buscar() {
-  const empresa  = document.getElementById('f_empresa').value.trim();
-  const dtinicio = document.getElementById('f_dtinicio').value;
-  const dtfim    = document.getElementById('f_dtfim').value;
-  const pessoa   = document.getElementById('f_pessoa').value.trim();
-
-  const params = new URLSearchParams();
-  if (empresa)  params.set('idempresa',  empresa);
-  if (dtinicio) params.set('dtinicio',   dtinicio);
-  if (dtfim)    params.set('dtfim',      dtfim);
-  if (pessoa)   params.set('idpessoa',   pessoa);
-
-  mostrarLoading();
-
-  try {
-    const res = await fetch(`${API_BASE}/api/relatorio?${params}`);
-    if (!res.ok) throw new Error(`Erro ${res.status}: ${res.statusText}`);
-    const dados = await res.json();
-    _dados = dados.map(enriquecer);
-    renderTabela(_dados);
-  } catch (e) {
-    mostrarErro(e.message);
+function toggleProdutos(id) {
+  const row = document.getElementById(`produtos_${id}`);
+  const btn = document.getElementById(`btn_${id}`);
+  if (row.style.display === 'none' || !row.style.display) {
+    row.style.display = 'table-row';
+    btn.innerHTML = '−';
+    btn.title = 'Recolher produtos';
+  } else {
+    row.style.display = 'none';
+    btn.innerHTML = '+';
+    btn.title = 'Expandir produtos';
   }
 }
 
-// =============================================
-//  RENDER
-// =============================================
-function renderTabela(dados) {
-  const area  = document.getElementById('tableArea');
-  const count = document.getElementById('resultCount');
-  const btnEx = document.getElementById('btnExport');
-  const showP = document.getElementById('chkProdutos').checked;
+async function lookupPessoa(inputId, labelId) {
+  let val = document.getElementById(inputId).value.trim();
+  let lbl = document.getElementById(labelId);
+  if (debounceTimer[inputId]) clearTimeout(debounceTimer[inputId]);
+  if (!val) { lbl.textContent = ''; return; }
+  lbl.textContent = '⏳ carregando...';
+  debounceTimer[inputId] = setTimeout(async () => {
+    try {
+      let resp = await fetch(`/api/pessoa/${val}`);
+      let data = await resp.json();
+      lbl.textContent = data?.nome || 'não encontrado';
+      lbl.className = data?.nome ? 'pessoa-label found' : 'pessoa-label notfound';
+    } catch { lbl.textContent = 'erro'; }
+  }, 500);
+}
 
-  if (!dados.length) {
-    area.innerHTML = `<div class="state-msg">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <h3>Nenhum resultado encontrado</h3><p>Tente ajustar os filtros.</p></div>`;
-    count.textContent = '';
-    btnEx.disabled = true;
+async function carregarEmpresas() {
+  try {
+    let res = await fetch('/api/empresas');
+    let rows = await res.json();
+    let select = document.getElementById('f_empresa');
+    select.innerHTML = '<option value="">Todas</option>';
+    rows.forEach(e => {
+      let opt = document.createElement('option');
+      opt.value = e.idempresa ?? e.IDEMPRESA;
+      opt.textContent = `Empresa ${opt.value}`;
+      select.appendChild(opt);
+    });
+  } catch (e) { console.warn(e); }
+}
+
+async function buscarNotas() {
+  let params = new URLSearchParams();
+  let empresa = document.getElementById('f_empresa').value;
+  let dtInicio = document.getElementById('f_dtinicio').value;
+  let dtFim = document.getElementById('f_dtfim').value;
+  let fornecedor = document.getElementById('f_fornecedor').value.trim();
+  let cliente = document.getElementById('f_cliente').value.trim();
+
+  if (empresa) params.set('idempresa', empresa);
+  if (dtInicio) params.set('dtinicio', dtInicio);
+  if (dtFim) params.set('dtfim', dtFim);
+  if (fornecedor) params.set('idfornecedor', fornecedor);
+  if (cliente) params.set('idcliente', cliente);
+
+  document.getElementById('tableArea').innerHTML = `<div class="state-msg"><p>⏳ Carregando notas fiscais...</p></div>`;
+  document.getElementById('summaryBar').style.display = 'none';
+  document.getElementById('btnExport').disabled = true;
+
+  try {
+    let resp = await fetch(`/api/relatorio?${params.toString()}`);
+    if (!resp.ok) throw new Error('Erro na consulta');
+    let data = await resp.json();
+    dadosNotas = data.map(normalizeNota);
+    renderizarTabela(dadosNotas);
+  } catch (err) {
+    document.getElementById('tableArea').innerHTML = `<div class="state-msg"><h3>❌ Erro</h3><p>${err.message}</p></div>`;
+  }
+}
+
+function renderizarTabela(notas) {
+  let area = document.getElementById('tableArea');
+  let countSpan = document.getElementById('resultCount');
+  let btnExport = document.getElementById('btnExport');
+
+  if (!notas.length) {
+    area.innerHTML = `<div class="state-msg"><h3>📭 Nenhuma nota encontrada</h3><p>Altere os filtros e tente novamente.</p></div>`;
+    countSpan.innerText = '0 notas';
+    btnExport.disabled = true;
     document.getElementById('summaryBar').style.display = 'none';
     return;
   }
 
-  count.textContent = `${dados.length} nota(s) encontrada(s)`;
-  btnEx.disabled = false;
+  countSpan.innerText = `${notas.length} nota(s)`;
+  btnExport.disabled = false;
 
-  // Monta thead
-  const ths = COLUNAS.map((c, i) => {
-    const sorted = _sortCol === i ? 'sorted' : '';
-    const icon   = _sortCol === i ? (_sortDir === 1 ? '▲' : '▼') : '↕';
-    return `<th class="${sorted}" onclick="ordenar(${i})">${c.label} <span class="sort-icon">${icon}</span></th>`;
-  }).join('');
-
-  // Monta tbody
-  let rows = '';
-  dados.forEach(nota => {
-    const tds = COLUNAS.map(c => {
-      let v = nota[c.key];
-      let content = cell(v, c.type);
-
-      // Tipo pessoa como badge
-      if (c.key === 'TIPOPESSOA') {
-        const cls = v === 'J' ? 'badge-j' : 'badge-f';
-        const lab = v === 'J' ? 'Jurídica' : v === 'F' ? 'Física' : v || '';
-        content = `<span class="badge ${cls}">${lab}</span>`;
-      }
-
-      return `<td class="${isRight(c.type)?'num':''}" title="${String(content).replace(/"/g,'&quot;')}">${content}</td>`;
-    }).join('');
-    rows += `<tr>${tds}</tr>`;
-
-    // Sub-linhas de produtos
-    if (showP && nota.produtos?.length) {
-      nota.produtos.forEach(p => {
-        const ptds = COL_PROD.map(cp => {
-          let v = p[cp.key];
-          let content = cp.type === 'brl'  ? fmt.brl(v)
-                      : cp.type === 'brl6' ? fmt.brl6(v)
-                      : cp.type === 'pct'  ? fmt.pct(v)
-                      : cp.type === 'num'  ? fmt.num(v)
-                      : (v ?? '');
-          return `<td>${content}</td>`;
-        });
-        // Preenche colunas faltando com espaços
-        const totalCols = COLUNAS.length;
-        while (ptds.length < totalCols) ptds.push('<td></td>');
-        rows += `<tr class="prod-row">${ptds.join('')}</tr>`;
-      });
-    }
+  let html = `<table class="data-table"><thead><tr>`;
+  
+  html += `<th style="width:45px; text-align:center;"></th>`;
+  
+  const larguras = [60, 95, 95, 100, 70, 70, 80, 200, 80, 130, 80, 120, 120, 120, 100, 100, 100, 100, 100, 350];
+  
+  colunasNota.forEach((col, idx) => {
+    let icon = sortIndex === idx ? (sortDir === 1 ? '▲' : '▼') : '↕';
+    let width = larguras[idx] || 100;
+    html += `<th style="width:${width}px;" onclick="ordenarPor(${idx})">${col.label} <span class="sort-icon">${icon}</span></th>`;
   });
+  html += `</thead><tbody>`;
 
-  area.innerHTML = `
-    <table class="data-table" id="mainTable">
-      <thead><tr>${ths}</tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+  let notaIndex = 0;
+  for (let nota of notas) {
+    const notaId = notaIndex;
+    const hasProdutos = nota.produtos && nota.produtos.length;
+    
+    html += `<tr class="nota-row">`;
+    
+    html += `<td class="expand-col" style="text-align:center;">`;
+    if (hasProdutos) {
+      html += `<button class="expand-btn" id="btn_${notaId}" onclick="toggleProdutos(${notaId})" title="Expandir produtos">+</button>`;
+    } else {
+      html += `<span style="opacity:0.3;">-</span>`;
+    }
+    html += `</td>`;
+    
+    for (let col of colunasNota) {
+      let val = nota[col.key];
+      let cellHtml = cellFormat(val, col.type);
+      let align = alignType(col.type) ? 'num' : '';
+      html += `<td class="${align}">${cellHtml}</td>`;
+    }
+    html += `</tr>`;
 
-  // Totais
-  const tot = dados.reduce((a, n) => {
-    a.nota   += 1;
-    a.valnota += Number(n.VALNOTA  || 0);
-    a.icms    += Number(n.VALICMS  || 0);
-    a.baseicms+= Number(n.VALBASEICMS || 0);
-    a.ipi     += Number(n.VALIPI   || 0);
-    a.frete   += Number(n.VALFRETE || 0);
-    return a;
-  }, { nota:0, valnota:0, icms:0, baseicms:0, ipi:0, frete:0 });
+    if (hasProdutos) {
+      html += `<tr id="produtos_${notaId}" style="display:none;" class="produtos-expand">`;
+      html += `<td colspan="${colunasNota.length + 1}" style="padding:0;">`;
+      html += `<table class="prod-table" style="width:100%; border-collapse:collapse;">`;
+      
+      html += `<tr class="prod-hdr">`;
+      for (let prodCol of colunasProduto) {
+        html += `<td style="padding:8px 12px; font-weight:700; background:#e6f2f9; font-size:0.7rem; border-bottom:2px solid #cbd5e1;">${prodCol.label}</td>`;
+      }
+      html += `</tr>`;
+      
+      for (let prod of nota.produtos) {
+        html += `<tr>`;
+        for (let prodCol of colunasProduto) {
+          let pVal = prod[prodCol.key];
+          let pFmt = cellFormat(pVal, prodCol.type);
+          let pAlign = alignType(prodCol.type) ? 'num' : '';
+          html += `<td style="padding:6px 12px; border-bottom:1px solid #e2e8f0; font-size:0.7rem;" class="${pAlign}">${pFmt}</td>`;
+        }
+        html += `</tr>`;
+      }
+      
+      html += `<table>`;
+      html += `</td>`;
+    }
+    
+    notaIndex++;
+  }
+  html += `</tbody>`;
+  area.innerHTML = html;
 
-  document.getElementById('totNotas').textContent    = tot.nota;
-  document.getElementById('totValnota').textContent  = fmt.brl(tot.valnota);
-  document.getElementById('totIcms').textContent     = fmt.brl(tot.icms);
-  document.getElementById('totBaseIcms').textContent = fmt.brl(tot.baseicms);
-  document.getElementById('totIpi').textContent      = fmt.brl(tot.ipi);
-  document.getElementById('totFrete').textContent    = fmt.brl(tot.frete);
+  let totals = notas.reduce((acc, n) => {
+    acc.qtd++;
+    acc.valnota += +n.valnota || 0;
+    acc.valprodutos += +n.valprodutos || 0;
+    acc.baseicms += +n.valbaseicms || 0;
+    acc.icms += +n.valicms || 0;
+    acc.baseipi += +n.valbaseipi || 0;
+    acc.ipi += +n.valipi || 0;
+    acc.frete += +n.valfrete || 0;
+    acc.desconto += +n.valdesconto || 0;
+    return acc;
+  }, { qtd: 0, valnota: 0, valprodutos: 0, baseicms: 0, icms: 0, baseipi: 0, ipi: 0, frete: 0, desconto: 0 });
+
+  document.getElementById('totNotas').innerText = totals.qtd;
+  document.getElementById('totValnota').innerText = fmt.brl(totals.valnota);
+  document.getElementById('totProdutos').innerText = fmt.brl(totals.valprodutos);
+  document.getElementById('totBaseIcms').innerText = fmt.brl(totals.baseicms);
+  document.getElementById('totIcms').innerText = fmt.brl(totals.icms);
+  document.getElementById('totBaseIpi').innerText = fmt.brl(totals.baseipi);
+  document.getElementById('totIpi').innerText = fmt.brl(totals.ipi);
+  document.getElementById('totFrete').innerText = fmt.brl(totals.frete);
+  document.getElementById('totDesconto').innerText = fmt.brl(totals.desconto);
   document.getElementById('summaryBar').style.display = 'flex';
 }
 
-function mostrarLoading() {
-  document.getElementById('tableArea').innerHTML =
-    `<div class="state-msg"><div class="spinner"></div><p>Buscando dados...</p></div>`;
-  document.getElementById('summaryBar').style.display = 'none';
-  document.getElementById('btnExport').disabled = true;
-  document.getElementById('resultCount').textContent = '';
-}
-
-function mostrarErro(msg) {
-  document.getElementById('tableArea').innerHTML =
-    `<div class="state-msg">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="1.5">
-        <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/>
-        <line x1="9" y1="9" x2="15" y2="15"/>
-      </svg>
-      <h3 style="color:#c0392b">Erro ao buscar dados</h3>
-      <p>${msg}</p></div>`;
-}
-
-// =============================================
-//  ORDENAÇÃO
-// =============================================
-function ordenar(colIdx) {
-  if (_sortCol === colIdx) _sortDir *= -1;
-  else { _sortCol = colIdx; _sortDir = 1; }
-
-  const key = COLUNAS[colIdx].key;
-  _dados.sort((a, b) => {
-    let va = a[key], vb = b[key];
-    if (va == null) va = '';
-    if (vb == null) vb = '';
-    if (!isNaN(Number(va)) && !isNaN(Number(vb))) return (Number(va) - Number(vb)) * _sortDir;
-    return String(va).localeCompare(String(vb), 'pt-BR') * _sortDir;
+function ordenarPor(colIdx) {
+  if (sortIndex === colIdx) sortDir *= -1;
+  else { sortIndex = colIdx; sortDir = 1; }
+  let key = colunasNota[colIdx].key;
+  dadosNotas.sort((a, b) => {
+    let va = a[key] ?? '';
+    let vb = b[key] ?? '';
+    let isNum = !isNaN(parseFloat(va)) && isFinite(va);
+    if (isNum && !isNaN(parseFloat(vb))) return (va - vb) * sortDir;
+    return String(va).localeCompare(String(vb), 'pt') * sortDir;
   });
-  renderTabela(_dados);
+  renderizarTabela(dadosNotas);
 }
 
-// =============================================
-//  EXPORTAR EXCEL (via CSV – abre no Excel)
-// =============================================
 function exportarExcel() {
-  if (!_dados.length) return;
-
-  const showP = document.getElementById('chkProdutos').checked;
-
-  // BOM + separador ponto-e-vírgula para Excel pt-BR
-  let csv = '\uFEFF';
-
-  // Cabeçalho principal
-  csv += COLUNAS.map(c => `"${c.label}"`).join(';') + '\n';
-
-  _dados.forEach(nota => {
-    const rowMain = COLUNAS.map(c => {
-      let v = nota[c.key];
-      if (c.type === 'brl' || c.type === 'brl6') v = Number(v || 0).toFixed(c.type === 'brl6' ? 6 : 2).replace('.', ',');
-      else if (c.type === 'pct') v = Number(v || 0).toFixed(2).replace('.', ',') + '%';
-      else if (c.type === 'dat') v = fmt.dat(v);
-      else v = v ?? '';
-      return `"${String(v).replace(/"/g, '""')}"`;
-    });
-    csv += rowMain.join(';') + '\n';
-
-    // Sub-linhas de produto
-    if (showP && nota.produtos?.length) {
-      // Linha de cabeçalho dos produtos (apenas uma vez seria ideal; aqui inline)
-      const hProd = COL_PROD.map(c => `"  >> ${c.label}"`);
-      while (hProd.length < COLUNAS.length) hProd.push('""');
-      csv += hProd.join(';') + '\n';
-
-      nota.produtos.forEach(p => {
-        const rProd = COL_PROD.map(cp => {
-          let v = p[cp.key];
-          if (cp.type === 'brl') v = Number(v || 0).toFixed(2).replace('.', ',');
-          else if (cp.type === 'brl6') v = Number(v || 0).toFixed(6).replace('.', ',');
-          else if (cp.type === 'pct') v = Number(v || 0).toFixed(2).replace('.', ',') + '%';
-          else if (cp.type === 'num') v = Number(v || 0).toFixed(3).replace('.', ',');
-          else v = v ?? '';
-          return `"${String(v).replace(/"/g, '""')}"`;
-        });
-        while (rProd.length < COLUNAS.length) rProd.push('""');
-        csv += rProd.join(';') + '\n';
-      });
+  if (!dadosNotas.length) return;
+  
+  let workbookData = [];
+  
+  let headerNota = colunasNota.map(c => c.label);
+  workbookData.push(headerNota);
+  
+  for (let nota of dadosNotas) {
+    let linhaNota = [];
+    for (let col of colunasNota) {
+      let val = nota[col.key];
+      if (col.type === 'badge') {
+        linhaNota.push(val === 'J' ? 'Jurídica' : val === 'F' ? 'Física' : val || '');
+      } else if (col.type === 'brl' || col.type === 'brl6') {
+        linhaNota.push(Number(val || 0));
+      } else if (col.type === 'pct') {
+        linhaNota.push(Number(val || 0));
+      } else if (col.type === 'dat') {
+        linhaNota.push(fmt.dat(val));
+      } else {
+        linhaNota.push(val ?? '');
+      }
     }
-  });
-
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `notas_entrada_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+    workbookData.push(linhaNota);
+    
+    if (nota.produtos && nota.produtos.length) {
+      let headerProdutos = colunasProduto.map(p => p.label);
+      workbookData.push(headerProdutos);
+      
+      for (let prod of nota.produtos) {
+        let linhaProduto = [];
+        for (let prodCol of colunasProduto) {
+          let v = prod[prodCol.key] ?? '';
+          if (prodCol.type === 'brl' || prodCol.type === 'brl6') {
+            linhaProduto.push(Number(v || 0));
+          } else if (prodCol.type === 'pct') {
+            linhaProduto.push(Number(v || 0));
+          } else {
+            linhaProduto.push(v);
+          }
+        }
+        workbookData.push(linhaProduto);
+      }
+    }
+    
+    workbookData.push([]);
+  }
+  
+  let ws = XLSX.utils.aoa_to_sheet(workbookData);
+  let wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Notas Entrada');
+  
+  let dataStr = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+  XLSX.writeFile(wb, `notas_entrada_${dataStr}.xlsx`);
 }
 
-// =============================================
-//  CONTROLES GERAIS
-// =============================================
 function limparFiltros() {
-  ['f_empresa','f_dtinicio','f_dtfim','f_pessoa'].forEach(id => {
-    document.getElementById(id).value = '';
-  });
+  document.getElementById('f_empresa').value = '';
+  document.getElementById('f_dtinicio').value = '';
+  document.getElementById('f_dtfim').value = '';
+  document.getElementById('f_fornecedor').value = '';
+  document.getElementById('f_cliente').value = '';
+  document.getElementById('lbl_fornecedor').textContent = '';
+  document.getElementById('lbl_cliente').textContent = '';
 }
 
-// Re-renderiza ao marcar/desmarcar itens
-document.getElementById('chkProdutos').addEventListener('change', () => {
-  if (_dados.length) renderTabela(_dados);
+document.getElementById('f_fornecedor').addEventListener('input', () => lookupPessoa('f_fornecedor', 'lbl_fornecedor'));
+document.getElementById('f_cliente').addEventListener('input', () => lookupPessoa('f_cliente', 'lbl_cliente'));
+document.querySelectorAll('.filter-group input, .filter-group select').forEach(el => {
+  el.addEventListener('keypress', e => { if (e.key === 'Enter') buscarNotas(); });
 });
 
-// Enter nos inputs dispara busca
-document.querySelectorAll('.filter-bar input').forEach(el => {
-  el.addEventListener('keydown', e => { if (e.key === 'Enter') buscar(); });
-});
-
-// Data/hora no header
-(function tick() {
-  document.getElementById('now').textContent =
-    new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'medium' });
-  setTimeout(tick, 1000);
+(function setDefaultDates() {
+  let hoje = new Date();
+  let primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  document.getElementById('f_dtinicio').value = primeiroDia.toISOString().slice(0, 10);
+  document.getElementById('f_dtfim').value = hoje.toISOString().slice(0, 10);
 })();
 
-// Datas padrão: último mês
-(function initDatas() {
-  const hoje   = new Date();
-  const primDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-  document.getElementById('f_dtinicio').value = primDia.toISOString().slice(0,10);
-  document.getElementById('f_dtfim').value    = hoje.toISOString().slice(0,10);
-})();
+function updateClock() {
+  document.getElementById('liveClock').innerText = new Date().toLocaleString('pt-BR');
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+carregarEmpresas();

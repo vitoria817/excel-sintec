@@ -1,148 +1,81 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relatório de Notas de Entrada</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; font-size: 12px; }
-        .header { background: #1a5276; color: white; padding: 15px 20px; font-size: 18px; font-weight: bold; }
-        .filtros { background: white; padding: 15px 20px; display: flex; flex-wrap: wrap; gap: 15px; border-bottom: 1px solid #ddd; }
-        .filtro-group { display: flex; flex-direction: column; gap: 4px; }
-        .filtro-group label { font-size: 11px; font-weight: bold; color: #555; }
-        .filtro-group input { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; }
-        button { background: #1a5276; color: white; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; margin-top: 18px; }
-        button:hover { background: #154360; }
-        .btn-excel { background: #27ae60; }
-        .toolbar { padding: 10px 20px; background: white; display: flex; gap: 10px; border-bottom: 1px solid #ddd; }
-        .result-count { margin-left: auto; color: #666; }
-        .table-wrapper { padding: 0 20px; overflow-x: auto; max-height: calc(100vh - 280px); overflow-y: auto; }
-        table { width: 100%; border-collapse: collapse; background: white; font-size: 11px; }
-        th { background: #34495e; color: white; padding: 8px 6px; position: sticky; top: 0; white-space: nowrap; }
-        td { padding: 6px; border-bottom: 1px solid #ecf0f1; white-space: nowrap; }
-        tr:hover { background: #f0f7ff; }
-        .prod-row td { background: #f9f9f9; font-size: 10px; }
-        .prod-header-row td { background: #e8f0f8; font-weight: bold; }
-        .num { text-align: right; }
-        .summary { position: fixed; bottom: 0; left: 0; right: 0; background: #2c3e50; color: white; padding: 8px 20px; display: flex; gap: 25px; }
-        .loading { text-align: center; padding: 50px; color: #666; }
-        .erro { text-align: center; padding: 50px; color: #c0392b; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>SINTEC - Notas de Entrada</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-    <div class="header">📊 Relatório de Notas de Entrada</div>
 
-    <div class="filtros">
-        <div class="filtro-group"><label>Empresa (ID)</label><input type="number" id="f_empresa" style="width:80px" value="1"></div>
-        <div class="filtro-group"><label>Data Início</label><input type="date" id="f_dtinicio"></div>
-        <div class="filtro-group"><label>Data Fim</label><input type="date" id="f_dtfim"></div>
-        <div class="filtro-group"><label>Fornecedor ID</label><input type="number" id="f_fornecedor" style="width:100px"></div>
-        <div class="filtro-group"><button onclick="buscar()">🔍 Buscar</button></div>
+<header class="app-header">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="16" y1="13" x2="8" y2="13"/>
+    <line x1="16" y1="17" x2="8" y2="17"/>
+  </svg>
+  <h1>Notas de Entrada • SINTEC</h1>
+  <span id="liveClock"></span>
+</header>
+
+<section class="filter-section">
+  <div class="filter-grid">
+    <div class="filter-group">
+      <label>🏢 Empresa</label>
+      <select id="f_empresa"><option value="">Todas</option></select>
     </div>
-
-    <div class="toolbar">
-        <button class="btn-excel" onclick="exportarExcel()" id="btnExport" disabled>📎 Exportar Excel</button>
-        <label><input type="checkbox" id="chkProdutos"> Mostrar itens</label>
-        <span class="result-count" id="resultCount"></span>
+    <div class="filter-group">
+      <label>📅 Início</label>
+      <input type="date" id="f_dtinicio" />
     </div>
-
-    <div class="table-wrapper"><div id="tableArea"><div class="loading">🔍 Clique em Buscar</div></div></div>
-
-    <div class="summary" id="summary" style="display:none">
-        <div><span>Notas: </span><strong id="totNotas">0</strong></div>
-        <div><span>Valor Total: </span><strong id="totValor">R$ 0</strong></div>
+    <div class="filter-group">
+      <label>📅 Fim</label>
+      <input type="date" id="f_dtfim" />
     </div>
+    <div class="filter-group">
+      <label>🔢 Fornecedor (ID)</label>
+      <input type="number" id="f_fornecedor" placeholder="ID" />
+    </div>
+    <div class="filter-group">
+      <label>🔢 Cliente (ID)</label>
+      <input type="number" id="f_cliente" placeholder="ID" />
+    </div>
+    <div class="filter-group btn-row">
+      <button class="btn btn-primary" onclick="buscarNotas()">🔍 Buscar</button>
+      <button class="btn btn-outline" onclick="limparFiltros()">🗑️ Limpar</button>
+    </div>
+  </div>
+  <div style="display: flex; gap: 16px; margin-top: 12px; padding-left: 6px;">
+    <span id="lbl_fornecedor" class="pessoa-label"></span>
+    <span id="lbl_cliente" class="pessoa-label"></span>
+  </div>
+</section>
 
-    <script>
-        let dados = [];
+<div class="action-bar">
+  <button class="btn btn-success btn-excel" id="btnExport" onclick="exportarExcel()" disabled>📎 Exportar Excel</button>
+  <div class="result-badge" id="resultCount"></div>
+</div>
 
-        async function buscar() {
-            const params = new URLSearchParams();
-            if (f_empresa.value) params.append('idempresa', f_empresa.value);
-            if (f_dtinicio.value) params.append('dtinicio', f_dtinicio.value);
-            if (f_dtfim.value) params.append('dtfim', f_dtfim.value);
-            if (f_fornecedor.value) params.append('idfornecedor', f_fornecedor.value);
+<div class="table-container" id="tableArea">
+  <div class="state-msg">
+    <p>🔍 Aguardando consulta...</p>
+  </div>
+</div>
 
-            document.getElementById('tableArea').innerHTML = '<div class="loading">⏳ Carregando...</div>';
-            document.getElementById('btnExport').disabled = true;
+<div class="totals-bar" id="summaryBar" style="display: none;">
+  <div class="total-item"><span>📄 NOTAS</span><strong id="totNotas">0</strong></div>
+  <div class="total-item"><span>💰 VALOR NOTA</span><strong id="totValnota">R$ 0,00</strong></div>
+  <div class="total-item"><span>📦 PRODUTOS</span><strong id="totProdutos">R$ 0,00</strong></div>
+  <div class="total-item"><span>🧾 BASE ICMS</span><strong id="totBaseIcms">R$ 0,00</strong></div>
+  <div class="total-item"><span>⚖️ ICMS</span><strong id="totIcms">R$ 0,00</strong></div>
+  <div class="total-item"><span>🏭 BASE IPI</span><strong id="totBaseIpi">R$ 0,00</strong></div>
+  <div class="total-item"><span>🏷️ IPI</span><strong id="totIpi">R$ 0,00</strong></div>
+  <div class="total-item"><span>🚛 FRETE</span><strong id="totFrete">R$ 0,00</strong></div>
+  <div class="total-item"><span>💰 DESCONTO</span><strong id="totDesconto">R$ 0,00</strong></div>
+</div>
 
-            try {
-                const response = await fetch(`/api/relatorio?${params}`);
-                if (!response.ok) throw new Error(await response.text());
-                dados = await response.json();
-                renderizar();
-            } catch(e) {
-                document.getElementById('tableArea').innerHTML = `<div class="erro">❌ Erro: ${e.message}</div>`;
-            }
-        }
-
-        function renderizar() {
-            const showProd = document.getElementById('chkProdutos').checked;
-            if (!dados.length) {
-                document.getElementById('tableArea').innerHTML = '<div class="loading">📭 Nenhum resultado</div>';
-                document.getElementById('resultCount').textContent = '';
-                document.getElementById('btnExport').disabled = true;
-                document.getElementById('summary').style.display = 'none';
-                return;
-            }
-
-            document.getElementById('resultCount').textContent = `${dados.length} nota(s)`;
-            document.getElementById('btnExport').disabled = false;
-            document.getElementById('summary').style.display = 'flex';
-
-            let totalValor = 0;
-            let html = '<tr><thead><tr><th>Emp</th><th>Nota</th><th>Série</th><th>Fornecedor</th><th>Data</th><th>Valor R$</th></tr></thead><tbody>';
-
-            dados.forEach(nota => {
-                totalValor += Number(nota.VALNOTA) || 0;
-                html += `<tr>
-                    <td>${nota.IDEMPRESA}</td>
-                    <td>${nota.NUMNOTA || '-'}</td>
-                    <td>${nota.SERIENOTA || '-'}</td>
-                    <td>${nota.NOME_FORNECEDOR || '-'}</td>
-                    <td>${nota.DTEMISSAO || '-'}</td>
-                    <td class="num">R$ ${(Number(nota.VALNOTA) || 0).toFixed(2).replace('.', ',')}</td>
-                </tr>`;
-
-                if (showProd && nota.produtos && nota.produtos.length) {
-                    html += `<tr class="prod-header-row"><td colspan="6"><strong>📦 Produtos:</strong></td></tr>`;
-                    nota.produtos.forEach(p => {
-                        html += `<tr class="prod-row">
-                            <td>${p.IDPRODUTO}</td>
-                            <td colspan="2">${(p.DESCR || '').substring(0, 50)}</td>
-                            <td>${p.QTDPRODUTO} ${p.EMBALAGEMENTRADA || ''}</td>
-                            <td>CFOP: ${p.CFOP || '-'}</td>
-                            <td class="num">R$ ${(Number(p.VALTOTLIQUIDO) || 0).toFixed(2).replace('.', ',')}</td>
-                        </tr>`;
-                    });
-                }
-            });
-
-            html += '</tbody></table>';
-            document.getElementById('tableArea').innerHTML = html;
-            document.getElementById('totNotas').textContent = dados.length;
-            document.getElementById('totValor').innerHTML = `R$ ${totalValor.toFixed(2).replace('.', ',')}`;
-        }
-
-        function exportarExcel() {
-            if (!dados.length) return;
-            let csv = '\uFEFFEmpresa;ID Planilha;Nota;Fornecedor;Data;Valor\n';
-            dados.forEach(n => {
-                csv += `${n.IDEMPRESA};${n.IDPLANILHA};${n.NUMNOTA || ''};${n.NOME_FORNECEDOR || ''};${n.DTEMISSAO || ''};${n.VALNOTA || 0}\n`;
-            });
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `relatorio_${new Date().toISOString().slice(0,10)}.csv`;
-            link.click();
-        }
-
-        const hoje = new Date();
-        const mesPassado = new Date(); mesPassado.setDate(hoje.getDate() - 30);
-        f_dtinicio.value = mesPassado.toISOString().slice(0,10);
-        f_dtfim.value = hoje.toISOString().slice(0,10);
-        document.getElementById('chkProdutos').addEventListener('change', () => { if(dados.length) renderizar(); });
-    </script>
+<script src="app.js"></script>
 </body>
 </html>

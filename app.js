@@ -6,49 +6,100 @@ let sortIndex = null;
 let sortDir = 1;
 let debounceTimer = {};
 
+// Cabeçalhos iguais aos do grupo "GrupoNota" do RelatorioNotasEntrada.jrxml
 const colunasNota = [
   { key: 'idempresa', label: 'Empresa', type: 'num' },
-  { key: 'dtlancamento', label: 'Lançamento', type: 'dat' },
-  { key: 'dtemissao', label: 'Emissão', type: 'dat' },
-  { key: 'numnota', label: 'Nº Nota', type: 'txt' },
+  { key: 'idplanilha', label: 'Planilha', type: 'num' },
+  { key: 'idpessoa', label: 'Id Fornecedor', type: 'num' },
+  { key: 'nome', label: 'Nome', type: 'txt' },
+  { key: 'tipopessoa', label: 'Tipo', type: 'badge' },
+  { key: 'numnota', label: 'Nota', type: 'txt' },
   { key: 'serienota', label: 'Série', type: 'txt' },
   { key: 'modelo', label: 'Modelo', type: 'txt' },
-  { key: 'idpessoa', label: 'ID Pessoa', type: 'num' },
-  { key: 'nome', label: 'Fornecedor/Cliente', type: 'txt' },
-  { key: 'tipopessoa', label: 'Tipo', type: 'badge' },
+  { key: 'dtemissao', label: 'Emissão', type: 'dat' },
+  { key: 'dtlancamento', label: 'Lançamento', type: 'dat' },
+  { key: 'valnota', label: 'Valor Nota', type: 'brl' },
+  { key: 'flagnotacancelada', label: 'Cancelada', type: 'flag' },
+  { key: 'situacaonfe', label: 'Sit. NFE', type: 'txt' },
+  { key: 'obsnota', label: 'Observação Nota', type: 'txt' },
+  { key: 'obssistema', label: 'Obs. Fiscal', type: 'txt' },
   { key: 'descr_operacao', label: 'Operação', type: 'txt' },
-  { key: '_cfop', label: 'CFOP Nota', type: 'txt' },
-  { key: 'valprodutos', label: 'Vl. Produtos', type: 'brl' },
-  { key: 'valnota', label: 'Vl. Nota', type: 'brl' },
-  { key: 'valbaseicms', label: 'Base ICMS', type: 'brl' },
-  { key: 'valicms', label: 'ICMS', type: 'brl' },
+  { key: 'criador', label: 'Usuário Lançamento', type: 'txt' },
+  { key: 'dtcriacao', label: 'Data/Hora Lançamento', type: 'datahora' },
+  { key: 'alterador', label: 'Usuário Alteração', type: 'txt' },
+  { key: 'dtalteracao', label: 'Data/Hora Alteração', type: 'datahora' },
+  { key: 'dhrecbto', label: 'Data/Hora Recebimento NFE', type: 'txt' },
+  { key: 'nroprotocolo', label: 'Protocolo NFE', type: 'txt' },
+  { key: 'valprodutos', label: 'Valor Produtos', type: 'brl' },
   { key: 'valbaseipi', label: 'Base IPI', type: 'brl' },
-  { key: 'valipi', label: 'IPI', type: 'brl' },
+  { key: 'valipi', label: 'Valor IPI', type: 'brl' },
+  { key: 'valbaseicms', label: 'Base ICMS', type: 'brl' },
+  { key: 'valicms', label: 'Valor ICMS', type: 'brl' },
+  { key: 'valbaseicmsub', label: 'Base Subst.', type: 'brl' },
+  { key: 'valicmsub', label: 'Valor Subst.', type: 'brl' },
   { key: 'valfrete', label: 'Frete', type: 'brl' },
+  { key: 'valseguro', label: 'Seguro', type: 'brl' },
   { key: 'valdesconto', label: 'Desconto', type: 'brl' },
-  { key: 'chaveacessodanfe', label: 'Chave NFe', type: 'txt' }
+  { key: 'valoutrasdespesas', label: 'Outras Despesas', type: 'brl' },
+  { key: 'valdifalentrada', label: 'R$ DIFAL', type: 'brl' },
+  { key: 'chaveacessodanfe', label: 'Chave DANFE', type: 'txt' }
 ];
 
+// Cabeçalhos iguais aos da faixa de detalhe (produto) do jrxml
 const colunasProduto = [
-  { key: 'numsequencia', label: 'Seq', type: 'num' },
-  { key: 'codbar', label: 'Cód. Barras', type: 'txt' },
-  { key: 'descr', label: 'Descrição', type: 'txt' },
+  { key: 'numsequencia', label: 'Seq.', type: 'num' },
+  { key: 'idproduto', label: 'Código Interno', type: 'num' },
+  { key: 'codbar', label: 'Código de Barras', type: 'txt' },
+  { key: 'descr', label: 'Descrição do Produto', type: 'txt' },
   { key: 'codncm', label: 'NCM', type: 'txt' },
-  { key: 'numcodfornecedor', label: 'Cód. Fornecedor', type: 'txt' },
-  { key: 'sittrib', label: 'CST', type: 'txt' },
-  { key: 'cfop', label: 'CFOP', type: 'txt' },
+  { key: 'numcodfornecedor', label: 'Código Fornecedor', type: 'txt' },
+  { key: 'codtrib', label: 'CST', type: 'txt' },
+  { key: 'sittrib', label: 'Situação Tributária', type: 'txt' },
+  { key: 'cfopinverso', label: 'CFOP Inverso', type: 'txt' },
+  { key: 'cfop', label: 'CFOP Gravado', type: 'txt' },
   { key: 'embalagementrada', label: 'UN', type: 'txt' },
-  { key: 'qtdproduto', label: 'Qtd', type: 'num' },
-  { key: 'valunitliquido', label: 'R$ Unit.', type: 'brl6' },
-  { key: 'valtotliquido', label: 'R$ Total', type: 'brl' },
-  { key: 'pericms', label: '% ICMS', type: 'pct' },
-  { key: 'valicms', label: 'ICMS', type: 'brl' },
-  { key: 'peripi', label: '% IPI', type: 'pct' },
-  { key: 'valipi', label: 'IPI', type: 'brl' },
-  { key: 'percofins', label: '% COFINS', type: 'pct' },
-  { key: 'valcofins', label: 'COFINS', type: 'brl' },
-  { key: 'idlote', label: 'Lote', type: 'txt' },
-  { key: 'flagestoque', label: 'Estoque', type: 'txt' }
+  { key: 'gramaentrada', label: 'Qtd Na Embalagem', type: 'num3' },
+  { key: 'qtdembalagem', label: 'QTD Embalagem', type: 'num3' },
+  { key: 'qtdproduto', label: 'QTD Unidades', type: 'num3' },
+  { key: 'valunitbruto', label: 'Valor Unitário', type: 'brl6' },
+  { key: 'valembalagembruto', label: 'Valor Embalagem', type: 'brl' },
+  { key: 'valtotbruto', label: 'R$ Total Bruto', type: 'brl' },
+  { key: 'valdescontoprod', label: 'R$ Desconto Produto', type: 'brl' },
+  { key: 'valdescontonota', label: 'Desconto NOTA', type: 'brl' },
+  { key: 'valfrete', label: 'Valor Frete', type: 'brl' },
+  { key: 'valseguro', label: 'Valor Seguro', type: 'brl' },
+  { key: 'valdespesasacessorias', label: 'Valor Despesas', type: 'brl' },
+  { key: 'valbaseipi', label: 'Base IPI', type: 'brl' },
+  { key: 'peripi', label: 'Alíquota IPI', type: 'pct' },
+  { key: 'valipi', label: 'Valor IPI', type: 'brl' },
+  { key: 'valbaseicms', label: 'Base ICMS', type: 'brl' },
+  { key: 'perredtribaseicm', label: '%Red.Base ICMS', type: 'pct' },
+  { key: 'valbasereduzidaicment', label: 'Vl.Red.Base ICMS', type: 'brl' },
+  { key: 'pericms', label: 'Alíquota ICMS', type: 'pct' },
+  { key: 'valreduzidoicment', label: 'Vl.Red. ICMS', type: 'brl' },
+  { key: 'valicms', label: 'Valor ICMS', type: 'brl' },
+  { key: 'valbaseicmssubstituido', label: 'Base Subst.', type: 'brl' },
+  { key: 'permargsubstituicao', label: 'Margem Subst.', type: 'pct' },
+  { key: 'pericmsubstituido', label: 'Alíquota Subst.', type: 'pct' },
+  { key: 'valicmsubstituido', label: 'Valor Subst.', type: 'brl' },
+  { key: 'qtdpedido', label: 'Qtd. Pedido', type: 'num3' },
+  { key: 'qtdunitbonifica', label: 'Un. Bonif.', type: 'num3' },
+  { key: 'qtdembbonifica', label: 'Emb. Bonif.', type: 'num3' },
+  { key: 'valunitbonificado', label: 'Vl.Unit. Bonif.', type: 'brl6' },
+  { key: 'valtotbonificado', label: 'Total Bonif.', type: 'brl' },
+  { key: 'valtotliquido', label: 'Total Líquido', type: 'brl' },
+  { key: 'tipopis', label: 'Tipo PIS', type: 'txt' },
+  { key: 'cstpis', label: 'CST PIS', type: 'txt' },
+  { key: 'valbasepis', label: 'Base PIS', type: 'brl' },
+  { key: 'perpis', label: '%PIS', type: 'pct' },
+  { key: 'valpis', label: 'Valor PIS', type: 'brl' },
+  { key: 'tipocofins', label: 'Tipo COFINS', type: 'txt' },
+  { key: 'cstcofins', label: 'CST COFINS', type: 'txt' },
+  { key: 'valbaseconfins', label: 'Base COFINS', type: 'brl' },
+  { key: 'percofins', label: '%COFINS', type: 'pct' },
+  { key: 'valcofins', label: 'Valor COFINS', type: 'brl' },
+  { key: 'lotes', label: 'Lote', type: 'txt' },
+  { key: 'descr_estoque', label: 'Est', type: 'txt' }
 ];
 
 const fmt = {
@@ -56,7 +107,9 @@ const fmt = {
   brl6: v => v == null ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 6, maximumFractionDigits: 6 }),
   pct: v => v == null ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) + '%',
   num: v => v == null ? '' : Number(v).toLocaleString('pt-BR'),
+  num3: v => v == null ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
   dat: v => { if (!v) return ''; let d = new Date(v); return isNaN(d) ? v : d.toLocaleDateString('pt-BR'); },
+  datahora: v => { if (!v) return ''; let d = new Date(v); return isNaN(d) ? v : d.toLocaleString('pt-BR'); },
   txt: v => v == null ? '' : String(v)
 };
 
@@ -66,11 +119,14 @@ function cellFormat(val, type) {
     let label = val === 'J' ? 'Jurídica' : val === 'F' ? 'Física' : (val || '');
     return `<span class="badge ${cls}">${label}</span>`;
   }
+  if (type === 'flag') {
+    return (val == null || val === 'F') ? 'N' : 'S';
+  }
   return fmt[type] ? fmt[type](val) : fmt.txt(val);
 }
 
 function alignType(t) {
-  return ['brl', 'brl6', 'pct', 'num'].includes(t);
+  return ['brl', 'brl6', 'pct', 'num', 'num3'].includes(t);
 }
 
 function normalizeNota(notaRaw) {
@@ -81,7 +137,6 @@ function normalizeNota(notaRaw) {
     Object.keys(p).forEach(k => { obj[k.toLowerCase()] = p[k]; });
     return obj;
   });
-  nota._cfop = nota.produtos[0]?.cfop || '';
   return nota;
 }
 
@@ -176,15 +231,11 @@ function renderizarTabela(notas) {
   btnExport.disabled = false;
 
   let html = `<table class="data-table"><thead><tr>`;
-  
   html += `<th style="width:45px; text-align:center;"></th>`;
-  
-  const larguras = [60, 95, 95, 100, 70, 70, 80, 200, 80, 130, 80, 120, 120, 120, 100, 100, 100, 100, 100, 350];
-  
+
   colunasNota.forEach((col, idx) => {
     let icon = sortIndex === idx ? (sortDir === 1 ? '▲' : '▼') : '↕';
-    let width = larguras[idx] || 100;
-    html += `<th style="width:${width}px;" onclick="ordenarPor(${idx})">${col.label} <span class="sort-icon">${icon}</span></th>`;
+    html += `<th onclick="ordenarPor(${idx})">${col.label} <span class="sort-icon">${icon}</span></th>`;
   });
   html += `</thead><tbody>`;
 
@@ -192,9 +243,8 @@ function renderizarTabela(notas) {
   for (let nota of notas) {
     const notaId = notaIndex;
     const hasProdutos = nota.produtos && nota.produtos.length;
-    
+
     html += `<tr class="nota-row">`;
-    
     html += `<td class="expand-col" style="text-align:center;">`;
     if (hasProdutos) {
       html += `<button class="expand-btn" id="btn_${notaId}" onclick="toggleProdutos(${notaId})" title="Expandir produtos">+</button>`;
@@ -202,7 +252,7 @@ function renderizarTabela(notas) {
       html += `<span style="opacity:0.3;">-</span>`;
     }
     html += `</td>`;
-    
+
     for (let col of colunasNota) {
       let val = nota[col.key];
       let cellHtml = cellFormat(val, col.type);
@@ -215,13 +265,13 @@ function renderizarTabela(notas) {
       html += `<tr id="produtos_${notaId}" style="display:none;" class="produtos-expand">`;
       html += `<td colspan="${colunasNota.length + 1}" style="padding:0;">`;
       html += `<table class="prod-table" style="width:100%; border-collapse:collapse;">`;
-      
+
       html += `<tr class="prod-hdr">`;
       for (let prodCol of colunasProduto) {
         html += `<td style="padding:8px 12px; font-weight:700; background:#e6f2f9; font-size:0.7rem; border-bottom:2px solid #cbd5e1;">${prodCol.label}</td>`;
       }
       html += `</tr>`;
-      
+
       for (let prod of nota.produtos) {
         html += `<tr>`;
         for (let prodCol of colunasProduto) {
@@ -232,11 +282,12 @@ function renderizarTabela(notas) {
         }
         html += `</tr>`;
       }
-      
-      html += `<table>`;
+
+      html += `</table>`;
       html += `</td>`;
+      html += `</tr>`;
     }
-    
+
     notaIndex++;
   }
   html += `</tbody>`;
@@ -252,8 +303,9 @@ function renderizarTabela(notas) {
     acc.ipi += +n.valipi || 0;
     acc.frete += +n.valfrete || 0;
     acc.desconto += +n.valdesconto || 0;
+    acc.difal += +n.valdifalentrada || 0;
     return acc;
-  }, { qtd: 0, valnota: 0, valprodutos: 0, baseicms: 0, icms: 0, baseipi: 0, ipi: 0, frete: 0, desconto: 0 });
+  }, { qtd: 0, valnota: 0, valprodutos: 0, baseicms: 0, icms: 0, baseipi: 0, ipi: 0, frete: 0, desconto: 0, difal: 0 });
 
   document.getElementById('totNotas').innerText = totals.qtd;
   document.getElementById('totValnota').innerText = fmt.brl(totals.valnota);
@@ -264,6 +316,7 @@ function renderizarTabela(notas) {
   document.getElementById('totIpi').innerText = fmt.brl(totals.ipi);
   document.getElementById('totFrete').innerText = fmt.brl(totals.frete);
   document.getElementById('totDesconto').innerText = fmt.brl(totals.desconto);
+  document.getElementById('totDifal').innerText = fmt.brl(totals.difal);
   document.getElementById('summaryBar').style.display = 'flex';
 }
 
@@ -283,41 +336,40 @@ function ordenarPor(colIdx) {
 
 function exportarExcel() {
   if (!dadosNotas.length) return;
-  
+
   let workbookData = [];
-  
   let headerNota = colunasNota.map(c => c.label);
   workbookData.push(headerNota);
-  
+
   for (let nota of dadosNotas) {
     let linhaNota = [];
     for (let col of colunasNota) {
       let val = nota[col.key];
       if (col.type === 'badge') {
         linhaNota.push(val === 'J' ? 'Jurídica' : val === 'F' ? 'Física' : val || '');
-      } else if (col.type === 'brl' || col.type === 'brl6') {
-        linhaNota.push(Number(val || 0));
-      } else if (col.type === 'pct') {
+      } else if (col.type === 'flag') {
+        linhaNota.push((val == null || val === 'F') ? 'N' : 'S');
+      } else if (col.type === 'brl' || col.type === 'brl6' || col.type === 'pct') {
         linhaNota.push(Number(val || 0));
       } else if (col.type === 'dat') {
         linhaNota.push(fmt.dat(val));
+      } else if (col.type === 'datahora') {
+        linhaNota.push(fmt.datahora(val));
       } else {
         linhaNota.push(val ?? '');
       }
     }
     workbookData.push(linhaNota);
-    
+
     if (nota.produtos && nota.produtos.length) {
       let headerProdutos = colunasProduto.map(p => p.label);
       workbookData.push(headerProdutos);
-      
+
       for (let prod of nota.produtos) {
         let linhaProduto = [];
         for (let prodCol of colunasProduto) {
           let v = prod[prodCol.key] ?? '';
-          if (prodCol.type === 'brl' || prodCol.type === 'brl6') {
-            linhaProduto.push(Number(v || 0));
-          } else if (prodCol.type === 'pct') {
+          if (prodCol.type === 'brl' || prodCol.type === 'brl6' || prodCol.type === 'pct') {
             linhaProduto.push(Number(v || 0));
           } else {
             linhaProduto.push(v);
@@ -326,14 +378,14 @@ function exportarExcel() {
         workbookData.push(linhaProduto);
       }
     }
-    
+
     workbookData.push([]);
   }
-  
+
   let ws = XLSX.utils.aoa_to_sheet(workbookData);
   let wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Notas Entrada');
-  
+
   let dataStr = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
   XLSX.writeFile(wb, `notas_entrada_${dataStr}.xlsx`);
 }

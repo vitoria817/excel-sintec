@@ -1,5 +1,3 @@
-//tem que arumar do CST para trazer certo os valores, so ele
-//arrumar o desingner para os fornecedores se destacarem no topo, não so um se destacar
 const express = require('express');
 const odbc    = require('odbc');
 const cors    = require('cors');
@@ -81,7 +79,6 @@ app.get('/api/relatorio', async (req, res) => {
 
     const where = conds.join(' AND ');
 
-    // Mesmos campos/alias do RelatorioNotasEntrada.jrxml
     const sql = `
       SELECT
         pa.idempresa,
@@ -104,12 +101,7 @@ app.get('/api/relatorio', async (req, res) => {
         pa.pericmsubstituido,
         pa.valicmsubstituido,
         trim(pa.sittrib)                                                        AS sittrib,
-        CASE
-            WHEN CAST(pa.cfop AS VARCHAR(10)) = '1102' THEN '102'
-            WHEN pa.codtrib IS NULL THEN ''
-            WHEN pa.codtrib = '' THEN ''
-            ELSE CAST(pa.codtrib AS VARCHAR(10))
-        END                                                                     AS codtrib,
+        COALESCE(TRIM(pa.codtrib), '')                                          AS codtrib,
         pa.valembalagembruto                                                    AS valunitbruto,
         pa.valunitbruto                                                         AS valembalagembruto,
         pa.valunitliquido,
@@ -162,7 +154,6 @@ app.get('/api/relatorio', async (req, res) => {
         of_loteslcto(pa.idempresa, pa.idplanilha, pa.idproduto, pa.numsequencia, pa.idlote) AS lotes,
         re.idrepositorio,
         trim(COALESCE(re.descr, ''))                                            AS descr_estoque,
-
         ne.idpessoa                                                             AS ne_idpessoa,
         trim(pes.nome)                                                          AS nome,
         trim(pes.tipopessoa)                                                    AS tipopessoa,
@@ -256,6 +247,7 @@ app.get('/api/relatorio', async (req, res) => {
           produtos: []
         });
       }
+      // ====== PRODUTO (apenas campos exibidos no relatório, incluindo numsequencia) ======
       notasMap.get(key).produtos.push({
         idproduto:               r.idproduto,
         codbar:                  r.codbar                  || '',
@@ -285,14 +277,13 @@ app.get('/api/relatorio', async (req, res) => {
         perredtribaseicm:        r.perredtribaseicm        || 0,
         valbasereduzidaicment:   r.valbasereduzidaicment   || 0,
         pericms:                 r.pericms                 || 0,
-        valreduzidoicment:       r.valreduzidoicment        || 0,
+        valreduzidoicment:       r.valreduzidoicment       || 0,
         valicms:                 r.valicms                 || 0,
         valbaseicmssubstituido:  r.valbaseicmssubstituido  || 0,
         permargsubstituicao:     r.permargsubstituicao     || 0,
         pericmsubstituido:       r.pericmsubstituido       || 0,
         valicmsubstituido:       r.valicmsubstituido       || 0,
         qtdpedido:               r.qtdpedido               || 0,
-        idbonifica:              r.idbonifica              || '',
         qtdunitbonifica:         r.qtdunitbonifica         || 0,
         qtdembbonifica:          r.qtdembbonifica          || 0,
         valunitbonificado:       r.valunitbonificado       || 0,
@@ -307,23 +298,10 @@ app.get('/api/relatorio', async (req, res) => {
         cstcofins:               r.cstcofins               || '',
         valbaseconfins:          r.valbaseconfins          || 0,
         percofins:               r.percofins               || 0,
-        valcofins:               r.valcofins                || 0,
-        idlote:                  r.idlote                  || '',
+        valcofins:               r.valcofins               || 0,
         lotes:                   r.lotes                   || '',
         descr_estoque:           r.descr_estoque           || '',
-        cstipi:                  r.cstipi                  || '',
-        custonf:                 r.custonf                 || 0,
-        custofornecedor:         r.custofornecedor         || 0,
-        valdifalentrada:         r.valdifalentrada         || 0,
-        numnota:                 r.pa_numnota              || '',
-        serienota:               r.pa_serienota            || '',
-        flagestoque:             r.flagestoque             || '',
-        flagavu:                 r.flagavu                 || '',
-        preconormal:             r.preconormal             || 0,
-        precovendaalterar:       r.precovendaalterar       || 0,
-        valsugestaoprecovenda:   r.valsugestaoprecovenda   || 0,
-        numetiquetas:            r.numetiquetas            || 0,
-        numsequencia:            r.numsequencia            || 0
+        numsequencia:            r.numsequencia || 0        // <-- CORRIGIDO: agora incluído
       });
     });
 

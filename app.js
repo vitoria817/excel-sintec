@@ -4,9 +4,10 @@ const API_BASE = '';
 let dadosNotas = [];
 let sortIndex = null;
 let sortDir = 1;
+let currentSortKey = null;
 let debounceTimer = {};
 
-// Cabeçalhos iguais aos do grupo "GrupoNota" do RelatorioNotasEntrada.jrxml
+// ==================== COLUNAS DA NOTA ====================
 const colunasNota = [
   { key: 'idempresa', label: 'Empresa', type: 'num' },
   { key: 'idplanilha', label: 'Planilha', type: 'num' },
@@ -45,7 +46,7 @@ const colunasNota = [
   { key: 'chaveacessodanfe', label: 'Chave DANFE', type: 'txt' }
 ];
 
-// Cabeçalhos iguais aos da faixa de detalhe (produto) do jrxml
+// ==================== COLUNAS DO PRODUTO (EXATAMENTE AS DO RELATÓRIO) ====================
 const colunasProduto = [
   { key: 'numsequencia', label: 'Seq.', type: 'num' },
   { key: 'idproduto', label: 'Código Interno', type: 'num' },
@@ -102,6 +103,7 @@ const colunasProduto = [
   { key: 'descr_estoque', label: 'Est', type: 'txt' }
 ];
 
+// ==================== FORMATAÇÃO ====================
 const fmt = {
   brl: v => v == null ? '' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
   brl6: v => v == null ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 6, maximumFractionDigits: 6 }),
@@ -129,6 +131,7 @@ function alignType(t) {
   return ['brl', 'brl6', 'pct', 'num', 'num3'].includes(t);
 }
 
+// ==================== NORMALIZAÇÃO ====================
 function normalizeNota(notaRaw) {
   let nota = {};
   Object.keys(notaRaw).forEach(k => { nota[k.toLowerCase()] = notaRaw[k]; });
@@ -140,6 +143,7 @@ function normalizeNota(notaRaw) {
   return nota;
 }
 
+// ==================== EXPANDIR/RECOLHER ====================
 function toggleProdutos(id) {
   const row = document.getElementById(`produtos_${id}`);
   const btn = document.getElementById(`btn_${id}`);
@@ -154,6 +158,7 @@ function toggleProdutos(id) {
   }
 }
 
+// ==================== BUSCAR PESSOA ====================
 async function lookupPessoa(inputId, labelId) {
   let val = document.getElementById(inputId).value.trim();
   let lbl = document.getElementById(labelId);
@@ -170,6 +175,7 @@ async function lookupPessoa(inputId, labelId) {
   }, 500);
 }
 
+// ==================== CARREGAR EMPRESAS ====================
 async function carregarEmpresas() {
   try {
     let res = await fetch('/api/empresas');
@@ -185,6 +191,7 @@ async function carregarEmpresas() {
   } catch (e) { console.warn(e); }
 }
 
+// ==================== BUSCAR NOTAS ====================
 async function buscarNotas() {
   let params = new URLSearchParams();
   let empresa = document.getElementById('f_empresa').value;
@@ -200,7 +207,6 @@ async function buscarNotas() {
   if (cliente) params.set('idcliente', cliente);
 
   document.getElementById('tableArea').innerHTML = `<div class="state-msg"><p>⏳ Carregando notas fiscais...</p></div>`;
-  document.getElementById('summaryBar').style.display = 'none';
   document.getElementById('btnExport').disabled = true;
 
   try {
@@ -208,12 +214,15 @@ async function buscarNotas() {
     if (!resp.ok) throw new Error('Erro na consulta');
     let data = await resp.json();
     dadosNotas = data.map(normalizeNota);
+    currentSortKey = 'dtlancamento';
+    sortDir = -1;
     renderizarTabela(dadosNotas);
   } catch (err) {
     document.getElementById('tableArea').innerHTML = `<div class="state-msg"><h3>❌ Erro</h3><p>${err.message}</p></div>`;
   }
 }
 
+// ==================== RENDERIZAR TABELA ====================
 function renderizarTabela(notas) {
   let area = document.getElementById('tableArea');
   let countSpan = document.getElementById('resultCount');
@@ -223,27 +232,52 @@ function renderizarTabela(notas) {
     area.innerHTML = `<div class="state-msg"><h3>📭 Nenhuma nota encontrada</h3><p>Altere os filtros e tente novamente.</p></div>`;
     countSpan.innerText = '0 notas';
     btnExport.disabled = true;
-    document.getElementById('summaryBar').style.display = 'none';
     return;
   }
 
   countSpan.innerText = `${notas.length} nota(s)`;
   btnExport.disabled = false;
 
+  const sortKey = currentSortKey || 'dtlancamento';
+  const sortDirLocal = sortDir || 1;
+
+  const notasOrdenadas = [...notas].sort((a, b) => {
+    const idA = a.idpessoa ?? 0;
+    const idB = b.idpessoa ?? 0;
+    if (idA !== idB) return idA - idB;
+    let va = a[sortKey] ?? '';
+    let vb = b[sortKey] ?? '';
+    let isNum = !isNaN(parseFloat(va)) && isFinite(va);
+    if (isNum && !isNaN(parseFloat(vb))) return (va - vb) * sortDirLocal;
+    return String(va).localeCompare(String(vb), 'pt') * sortDirLocal;
+  });
+
   let html = `<table class="data-table"><thead><tr>`;
   html += `<th style="width:45px; text-align:center;"></th>`;
-
   colunasNota.forEach((col, idx) => {
-    let icon = sortIndex === idx ? (sortDir === 1 ? '▲' : '▼') : '↕';
+    let icon = (sortIndex === idx) ? (sortDir === 1 ? '▲' : '▼') : '↕';
     html += `<th onclick="ordenarPor(${idx})">${col.label} <span class="sort-icon">${icon}</span></th>`;
   });
-  html += `</thead><tbody>`;
+  html += `</tr></thead><tbody>`;
 
-  let notaIndex = 0;
-  for (let nota of notas) {
-    const notaId = notaIndex;
+  let currentFornecedor = null;
+  let grupoCor = 0;
+
+  notasOrdenadas.forEach((nota, index) => {
+    const idFornecedor = nota.idpessoa;
+    if (currentFornecedor !== idFornecedor) {
+      currentFornecedor = idFornecedor;
+      grupoCor = (grupoCor + 1) % 2;
+      const nomeFornecedor = nota.nome || `Fornecedor ${idFornecedor}`;
+      const corFundo = grupoCor === 0 ? '#e6f2f9' : '#f0f4fa';
+      html += `<tr class="grupo-fornecedor" style="background:${corFundo}; border-top:3px solid #1e3a5f;">`;
+      html += `<td colspan="${colunasNota.length + 1}" style="padding:8px 15px; font-weight:700; color:#0d1b3e; text-align:left;">`;
+      html += `🏢 Fornecedor: <strong>${nomeFornecedor}</strong> (ID: ${idFornecedor})`;
+      html += `</td></tr>`;
+    }
+
+    const notaId = index;
     const hasProdutos = nota.produtos && nota.produtos.length;
-
     html += `<tr class="nota-row">`;
     html += `<td class="expand-col" style="text-align:center;">`;
     if (hasProdutos) {
@@ -265,13 +299,11 @@ function renderizarTabela(notas) {
       html += `<tr id="produtos_${notaId}" style="display:none;" class="produtos-expand">`;
       html += `<td colspan="${colunasNota.length + 1}" style="padding:0;">`;
       html += `<table class="prod-table" style="width:100%; border-collapse:collapse;">`;
-
       html += `<tr class="prod-hdr">`;
       for (let prodCol of colunasProduto) {
         html += `<td style="padding:8px 12px; font-weight:700; background:#e6f2f9; font-size:0.7rem; border-bottom:2px solid #cbd5e1;">${prodCol.label}</td>`;
       }
       html += `</tr>`;
-
       for (let prod of nota.produtos) {
         html += `<tr>`;
         for (let prodCol of colunasProduto) {
@@ -282,58 +314,24 @@ function renderizarTabela(notas) {
         }
         html += `</tr>`;
       }
-
       html += `</table>`;
-      html += `</td>`;
-      html += `</tr>`;
+      html += `</td></tr>`;
     }
+  });
 
-    notaIndex++;
-  }
-  html += `</tbody>`;
+  html += `</tbody></table>`;
   area.innerHTML = html;
-
-  let totals = notas.reduce((acc, n) => {
-    acc.qtd++;
-    acc.valnota += +n.valnota || 0;
-    acc.valprodutos += +n.valprodutos || 0;
-    acc.baseicms += +n.valbaseicms || 0;
-    acc.icms += +n.valicms || 0;
-    acc.baseipi += +n.valbaseipi || 0;
-    acc.ipi += +n.valipi || 0;
-    acc.frete += +n.valfrete || 0;
-    acc.desconto += +n.valdesconto || 0;
-    acc.difal += +n.valdifalentrada || 0;
-    return acc;
-  }, { qtd: 0, valnota: 0, valprodutos: 0, baseicms: 0, icms: 0, baseipi: 0, ipi: 0, frete: 0, desconto: 0, difal: 0 });
-
-  document.getElementById('totNotas').innerText = totals.qtd;
-  document.getElementById('totValnota').innerText = fmt.brl(totals.valnota);
-  document.getElementById('totProdutos').innerText = fmt.brl(totals.valprodutos);
-  document.getElementById('totBaseIcms').innerText = fmt.brl(totals.baseicms);
-  document.getElementById('totIcms').innerText = fmt.brl(totals.icms);
-  document.getElementById('totBaseIpi').innerText = fmt.brl(totals.baseipi);
-  document.getElementById('totIpi').innerText = fmt.brl(totals.ipi);
-  document.getElementById('totFrete').innerText = fmt.brl(totals.frete);
-  document.getElementById('totDesconto').innerText = fmt.brl(totals.desconto);
-  document.getElementById('totDifal').innerText = fmt.brl(totals.difal);
-  document.getElementById('summaryBar').style.display = 'flex';
 }
 
+// ==================== ORDENAÇÃO ====================
 function ordenarPor(colIdx) {
   if (sortIndex === colIdx) sortDir *= -1;
   else { sortIndex = colIdx; sortDir = 1; }
-  let key = colunasNota[colIdx].key;
-  dadosNotas.sort((a, b) => {
-    let va = a[key] ?? '';
-    let vb = b[key] ?? '';
-    let isNum = !isNaN(parseFloat(va)) && isFinite(va);
-    if (isNum && !isNaN(parseFloat(vb))) return (va - vb) * sortDir;
-    return String(va).localeCompare(String(vb), 'pt') * sortDir;
-  });
+  currentSortKey = colunasNota[colIdx].key;
   renderizarTabela(dadosNotas);
 }
 
+// ==================== EXPORTAR EXCEL ====================
 function exportarExcel() {
   if (!dadosNotas.length) return;
 
@@ -349,7 +347,7 @@ function exportarExcel() {
         linhaNota.push(val === 'J' ? 'Jurídica' : val === 'F' ? 'Física' : val || '');
       } else if (col.type === 'flag') {
         linhaNota.push((val == null || val === 'F') ? 'N' : 'S');
-      } else if (col.type === 'brl' || col.type === 'brl6' || col.type === 'pct') {
+      } else if (['brl','brl6','pct'].includes(col.type)) {
         linhaNota.push(Number(val || 0));
       } else if (col.type === 'dat') {
         linhaNota.push(fmt.dat(val));
@@ -364,12 +362,11 @@ function exportarExcel() {
     if (nota.produtos && nota.produtos.length) {
       let headerProdutos = colunasProduto.map(p => p.label);
       workbookData.push(headerProdutos);
-
       for (let prod of nota.produtos) {
         let linhaProduto = [];
         for (let prodCol of colunasProduto) {
           let v = prod[prodCol.key] ?? '';
-          if (prodCol.type === 'brl' || prodCol.type === 'brl6' || prodCol.type === 'pct') {
+          if (['brl','brl6','pct'].includes(prodCol.type)) {
             linhaProduto.push(Number(v || 0));
           } else {
             linhaProduto.push(v);
@@ -378,18 +375,17 @@ function exportarExcel() {
         workbookData.push(linhaProduto);
       }
     }
-
     workbookData.push([]);
   }
 
   let ws = XLSX.utils.aoa_to_sheet(workbookData);
   let wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Notas Entrada');
-
-  let dataStr = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+  let dataStr = new Date().toISOString().slice(0,19).replace(/:/g,'-');
   XLSX.writeFile(wb, `notas_entrada_${dataStr}.xlsx`);
 }
 
+// ==================== LIMPAR FILTROS ====================
 function limparFiltros() {
   document.getElementById('f_empresa').value = '';
   document.getElementById('f_dtinicio').value = '';
@@ -400,12 +396,14 @@ function limparFiltros() {
   document.getElementById('lbl_cliente').textContent = '';
 }
 
+// ==================== EVENTOS ====================
 document.getElementById('f_fornecedor').addEventListener('input', () => lookupPessoa('f_fornecedor', 'lbl_fornecedor'));
 document.getElementById('f_cliente').addEventListener('input', () => lookupPessoa('f_cliente', 'lbl_cliente'));
 document.querySelectorAll('.filter-group input, .filter-group select').forEach(el => {
   el.addEventListener('keypress', e => { if (e.key === 'Enter') buscarNotas(); });
 });
 
+// ==================== DATAS PADRÃO ====================
 (function setDefaultDates() {
   let hoje = new Date();
   let primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
@@ -413,10 +411,12 @@ document.querySelectorAll('.filter-group input, .filter-group select').forEach(e
   document.getElementById('f_dtfim').value = hoje.toISOString().slice(0, 10);
 })();
 
+// ==================== RELÓGIO ====================
 function updateClock() {
   document.getElementById('liveClock').innerText = new Date().toLocaleString('pt-BR');
 }
 setInterval(updateClock, 1000);
 updateClock();
 
+// ==================== INICIALIZAÇÃO ====================
 carregarEmpresas();
